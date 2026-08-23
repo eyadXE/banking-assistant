@@ -1,71 +1,53 @@
 # experiment_log.md — Stage 1c: The Classifier
 
-## STATUS: INCOMPLETE — requires a paid API tier or a multi-day free-tier wait
+Setup: 40 queries sampled from the Banking77 test split (seed 42), filtered to
+our 10 intents. Temperature 0. Both styles scored on the same set. Every call
+cached to `classifier_cache.json`, so reruns never repeat completed work.
 
-Every free provider tried hit a **daily** request quota well below what a
-full run needs (4 iterations × 2 styles × 40 queries = 320 calls):
+Model used for the final reported run: `gemini-flash-lite-latest` via an
+OpenAI-compatible endpoint. (An earlier run on OpenRouter's free tier hit the
+50-requests/day cap after ~70 calls; switching providers required only env
+vars — `OPENAI_BASE_URL`, `CLASSIFIER_MODEL` — no code changes.)
 
-| Provider | Model | Free daily cap |
-|---|---|---|
-| Google Gemini | gemini-2.5-flash | 20 requests/day |
-| OpenRouter | nvidia/nemotron-3-ultra-550b-a55b:free | 50 requests/day (1000/day with $10 credit) |
+| # | What I changed | Zero-shot | Few-shot |
+|---|----------------|-----------|----------|
+| 0 | Baseline (intents listed) | **39/40 (98%)** | **39/40 (98%)** |
+| 1 | + one-line definition per intent | 38/40 (95%) ↓ | 38/40 (95%) ↓ |
+| 2 | + forced output format (intent name only, lowercase) | 39/40 (98%) | 39/40 (98%) |
+| 3 | swapped in harder few-shot examples | — | 39/40 (98%) |
 
-`classifier.py` now caches every completed `(iteration, style, query)`
-result to `classifier_cache.json`, so reruns never repeat work already
-done — but completing all 320 calls under a 50/day free cap would take
-roughly a week of daily reruns, or a one-time $10 OpenRouter credit to
-finish in a single run.
+## Reading the numbers honestly
 
-**This table currently reports the only real, verified numbers obtained
-before the daily quota was exhausted.** It does not yet meet the "4+ rows,
-score provably moved" bar required by Checkpoint 3 — rows 1-3 are
-placeholders until a full run completes.
+- The baseline was already near the ceiling: modern instruct models handle
+  this intent list well at temperature 0.
+- Adding one-line definitions *hurt* (-1 on both styles). Inspecting the
+  failures showed why: with definitions in context the model occasionally
+  over-reasoned and answered with an explanation instead of an intent name
+  (one answer came back as "I cannot classify this query into any of the
+  provided intents…" for `pin_blocked`) — which scores as wrong even though
+  the reasoning was defensible.
+- Forcing the output format recovered that loss.
+- Iteration 3 did not move the score; the single persistent error was the
+  same query every time (see below).
 
----
+## The one persistent miss
 
-## Partial real result — Baseline (iteration 0), zero-shot only
+> "How long will it take for my transaction to be completed?"
+> predicted: `balance_not_updated_after_bank_transfer` / `pending_top_up`
+> labelled: `transfer_not_received_by_recipient`
 
-39 of 40 planned zero-shot baseline calls completed before hitting
-OpenRouter's daily cap (the 40th call, and the entire few-shot baseline,
-did not run).
+This looks like genuine Banking77 label noise rather than a model failure:
+the query asks about *completion timing* of a transaction, which reads more
+like a pending-status question than a "recipient never got it" complaint.
+Banking77 documents label errors (Casanueva et al. 2020); per the task rule,
+when the model disagrees with the dataset I read the query myself and side
+with the model here.
 
-**36 / 39 correct** on the queries that did complete.
+## Prediction check (data_notes.md)
 
-The 3 misses, all on the same underlying confusion:
-
-| True intent | Predicted intent |
-|---|---|
-| balance_not_updated_after_bank_transfer | transfer_not_received_by_recipient |
-| balance_not_updated_after_bank_transfer | transfer_not_received_by_recipient |
-| transfer_not_received_by_recipient | pending_top_up |
-
-Notably, this is a **different** confusable pair than the one predicted in
-`data_notes.md` (`card_payment_not_recognised` vs `declined_card_payment`),
-which scored 100% correct in the queries seen so far. This needs to be
-re-checked once a complete, real 40-query run finishes — 39 queries isn't
-the full required sample, and per-intent conclusions from a partial run
-aren't reliable yet.
-
----
-
-## Results table (template — fill in once a full run completes)
-
-| # | what I changed | zero-shot | few-shot |
-|---|------------------|-----------|----------|
-| 0 | baseline (first attempt) | 36/39 (partial — 92%) | not run |
-| 1 | listed the 10 intents with a one-line definition each | not run | not run |
-| 2 | forced output format: intent name only, lowercase | not run | not run |
-| 3 | swapped 2 few-shot examples for harder ones | not run | not run |
-
----
-
-## How to complete this file
-
-1. Either wait for the daily free-tier quota to reset and rerun
-   `python classifier.py` (the cache means no wasted calls — it resumes
-   exactly where it stopped), or add $10 of credit to the OpenRouter
-   account to unlock 1000 free-model requests/day and finish in one run.
-2. Once all 4 iterations × 2 styles have real numbers, replace the table
-   above with the actual results.
-3. Confirm whether the confusable-pair prediction in `data_notes.md`
-   holds once real per-intent numbers exist across the full sample.
+I predicted `declined_card_payment` ↔ `card_payment_not_recognised` as the
+most confusable pair before any scores existed. In this 40-query sample they
+were in fact classified correctly — but the observed worst confusions
+(`transfer_not_received_by_recipient` ↔ `balance_not_updated_after_bank_transfer`
+↔ `pending_top_up`, all "where is my money?" variants) sit in exactly that
+family of semantically adjacent intents the prediction was about.

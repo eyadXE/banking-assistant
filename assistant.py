@@ -15,6 +15,7 @@ reuse the same loop elsewhere.
 
 import json
 import os
+import time
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -30,6 +31,7 @@ client = OpenAI(
 
 MODEL_NAME = os.environ.get("ASSISTANT_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
 MAX_STEPS = 6  # bounded loop — never spins forever
+LLM_CALL_DELAY = float(os.environ.get("LLM_CALL_DELAY", "0"))
 
 SYSTEM_PROMPT = """You are Nubank Egypt's banking assistant. You speak in a warm,
 clear, professional tone — never robotic, never over-formal.
@@ -79,6 +81,8 @@ def run_conversation_turn(messages, verbose=True, tool_log=None):
     that fired this turn — used by tests.py to score "process".
     """
     for step in range(MAX_STEPS):
+        if LLM_CALL_DELAY:
+            time.sleep(LLM_CALL_DELAY)  # stay under free-tier per-minute quotas
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,

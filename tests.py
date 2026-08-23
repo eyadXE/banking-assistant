@@ -12,6 +12,8 @@ Run with: python tests.py
 Requires a working OPENROUTER_API_KEY in .env (calls the live model).
 """
 
+import time
+
 import bank
 import assistant
 
@@ -142,6 +144,15 @@ def run_case(case):
     assistant's reply plus the list of tools that actually fired."""
     bank.reset()
     messages = assistant.new_conversation()
+    if case.get("context"):
+        # Tell the assistant who it is serving, the way a real channel
+        # (logged-in web/mobile session) would — otherwise "my balance"
+        # is genuinely unanswerable and the case measures the wrong thing.
+        messages.append({
+            "role": "system",
+            "content": f"The customer you are chatting with is account "
+                       f"{case['context']['account_id']} (they are logged in).",
+        })
     messages.append({"role": "user", "content": case["message"]})
 
     tool_log = []
@@ -167,6 +178,7 @@ def run_all():
     print(f"Running {len(TEST_CASES)} test cases...\n")
     results = []
     for case in TEST_CASES:
+        time.sleep(4)  # stay under free-tier per-minute rate limits
         print(f"--- Case {case['id']}: {case['message'][:60]} ---")
         reply, tool_log = run_case(case)
         print(f"  Tools fired: {tool_log}")
