@@ -64,11 +64,12 @@ from datasets import load_dataset
 load_dotenv()
 
 client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ["OPENROUTER_API_KEY"],
+    base_url=os.environ.get("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"),
+    api_key=os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GEMINI_API_KEY", ""),
 )
 
-MODEL_NAME = "nvidia/nemotron-3-super-120b-a12b:free"
+MODEL_NAME = os.environ.get("CLASSIFIER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
+
 SEED = 42
 N_TEST_QUERIES = 40
 # While debugging, set QUICK_TEST_N (e.g. 8) via env var to sample fewer
