@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+env/
+myenv/
+.DS_Store
+.idea/
+.vscode/
+classifier_cache.json

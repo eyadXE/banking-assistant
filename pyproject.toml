@@ -1,0 +1,13 @@
+[project]
+name = "banking-assistant"
+version = "1.0.0"
+description = "AI banking assistant: LLM intent classification, hand-written tool-calling loop, code-enforced guardrails, and a 15-case eval suite"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "datasets>=2.0.0",
+    "streamlit>=1.30.0",
+]
