@@ -59,7 +59,11 @@ customer message ──► assistant.py (hand-written loop)
 - **Provider-agnostic, resilient integration.** Live third-party API chaining (Frankfurter currency conversion) decided by the model but executed through guarded tool calls; automatic retry/backoff on transient LLM provider errors; a provider-swap (OpenRouter → Gemini) that required only environment variables, no code changes, when free-tier rate limits were hit mid-experiment.
 - **Reproducible experimentation.** Disk-cached classification results and a fixed random seed mean the reported numbers can be regenerated exactly, not just quoted.
 
-## 5 · Running it
+## 5 · Screenshots
+
+*(Screenshots coming soon)*
+
+## 6 · Running it
 
 ```bash
 pip install -r requirements.txt && cp .env.example .env   # add your OpenRouter or Gemini key
