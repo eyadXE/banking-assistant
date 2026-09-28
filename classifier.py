@@ -125,7 +125,7 @@ FEW_SHOT_EXAMPLES = [
 def load_banking77_sample(seed=SEED, n=N_TEST_QUERIES):
     """Load Banking77 test split, filter to our 10 intents, sample n rows
     with a fixed seed for reproducibility."""
-    ds = load_dataset("PolyAI/banking77")
+    ds = load_dataset("PolyAI/banking77", trust_remote_code=True)
     name = ds["train"].features["label"].int2str
 
     test = ds["test"]

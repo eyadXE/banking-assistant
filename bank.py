@@ -6,7 +6,11 @@ In-memory mock bank. No database, no file — exactly as required.
 Exactly 3 customers (A-1, A-2, A-3), exactly 3 transactions each.
 """
 
+import sys
 from copy import deepcopy
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")  # header uses an em-dash; Windows consoles default to cp1252
 
 _INITIAL_STATE = {
     "A-1": {

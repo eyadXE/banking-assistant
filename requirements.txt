@@ -3,4 +3,4 @@ uvicorn[standard]
 openai>=1.0.0
 python-dotenv>=1.0.0
 requests>=2.31.0
-datasets>=2.0.0
+datasets>=2.0.0,<3.0.0  # PolyAI/banking77 is a legacy script-based HF dataset; datasets>=3.0 dropped script-loading support entirely

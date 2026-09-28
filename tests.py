@@ -12,7 +12,12 @@ Run with: python tests.py
 Requires a working OPENROUTER_API_KEY in .env (calls the live model).
 """
 
+import sys
 import time
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")  # LLM replies use smart quotes/em-dashes;
+    sys.stderr.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252 and crash on them
 
 import bank
 import assistant
@@ -180,7 +185,18 @@ def run_all():
     for case in TEST_CASES:
         time.sleep(4)  # stay under free-tier per-minute rate limits
         print(f"--- Case {case['id']}: {case['message'][:60]} ---")
-        reply, tool_log = run_case(case)
+        try:
+            reply, tool_log = run_case(case)
+        except Exception as exc:
+            # Free-tier model providers occasionally stay overloaded past our
+            # retries; don't let one case take down the other 14.
+            print(f"  ERROR: {exc}")
+            print()
+            results.append({
+                "id": case["id"], "message": case["message"], "reply": None,
+                "tools_fired": [], "process_pass_auto": False,
+            })
+            continue
         print(f"  Tools fired: {tool_log}")
         print(f"  Reply: {reply[:200]}")
 

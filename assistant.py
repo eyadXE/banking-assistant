@@ -15,7 +15,12 @@ reuse the same loop elsewhere.
 
 import json
 import os
+import sys
 import time
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")  # LLM replies use smart quotes/em-dashes;
+    sys.stderr.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252 and crash on them
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -30,7 +35,9 @@ client = OpenAI(
 )
 
 MODEL_NAME = os.environ.get("ASSISTANT_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
-MAX_STEPS = 6  # bounded loop — never spins forever
+MAX_STEPS = 10  # bounded loop — never spins forever (6 was too tight for
+                # multi-transfer chains: e.g. 2 lookups + 3 transfers already
+                # exhausts 6 steps with no step left for the final reply)
 LLM_CALL_DELAY = float(os.environ.get("LLM_CALL_DELAY", "0"))
 
 SYSTEM_PROMPT = """You are Nubank Egypt's banking assistant. You speak in a warm,
@@ -40,7 +47,9 @@ TOOLS: You have access to four tools: get_account, get_recent_transactions,
 transfer_money, and convert_currency. Always use these tools to answer
 questions about balances, transactions, transfers, or currency conversion.
 Never invent or guess a balance, transaction, or exchange rate — if you
-don't have the real data from a tool, call the tool.
+don't have the real data from a tool, call the tool. Use the currency
+exactly as returned by the tool (e.g. "currency": "USD") — never relabel
+or assume a different currency for amounts a tool already returned.
 
 LIMITS: Every account has a daily transfer limit. You must never claim a
 transfer above that limit will succeed, and you must never ask the
@@ -54,6 +63,26 @@ is unclear, suspicious, or something you cannot safely resolve with your
 tools, tell the customer clearly that this will be escalated to a human
 agent who will follow up. Never pretend to have authority you don't have.
 """
+
+
+def _call_model_with_retry(messages, attempts=5, backoff=3.0):
+    """Free-tier providers occasionally return a transient overload error
+    (choices=None) instead of raising. Retry a couple of times before
+    surfacing a clear error, instead of crashing on response.choices[0]."""
+    last_error = None
+    for attempt in range(attempts):
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages,
+            tools=tools.TOOL_DECLARATIONS,
+            temperature=0,
+        )
+        if response.choices:
+            return response
+        last_error = getattr(response, "error", None) or "empty response from model provider"
+        if attempt < attempts - 1:
+            time.sleep(backoff * (attempt + 1))
+    raise RuntimeError(f"Model provider failed after {attempts} attempts: {last_error}")
 
 
 def call_tool(name, arguments):
@@ -83,12 +112,7 @@ def run_conversation_turn(messages, verbose=True, tool_log=None):
     for step in range(MAX_STEPS):
         if LLM_CALL_DELAY:
             time.sleep(LLM_CALL_DELAY)  # stay under free-tier per-minute quotas
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            tools=tools.TOOL_DECLARATIONS,
-            temperature=0,
-        )
+        response = _call_model_with_retry(messages)
         message = response.choices[0].message
 
         tool_calls = getattr(message, "tool_calls", None)
